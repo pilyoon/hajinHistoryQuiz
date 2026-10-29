@@ -58,6 +58,10 @@
   .tabs{display:flex;gap:8px;margin:6px 0 4px}
   .tabs button{flex:1;padding:10px;border-radius:99px;border:1px solid var(--line);background:#fff;font-size:14px;font-weight:600}
   .tabs button.on{background:var(--main);color:#fff;border-color:var(--main)}
+  .peek{margin-top:18px;padding:12px;font-size:15px}
+  .ansbox{background:var(--okbg);border:1px solid #b7e2c1;border-radius:14px;padding:12px 14px;margin-top:12px;font-size:16px;word-break:keep-all}
+  .ansbox b{color:var(--ok);margin-right:6px}
+  .gradelink{display:block;margin:10px auto 0;background:none;border:0;color:var(--sub);font-size:14px;font-weight:600;padding:6px 12px;text-decoration:underline;cursor:pointer}
   .mini{border:1px solid var(--main);background:#fff;color:var(--main);border-radius:8px;padding:6px 10px;font-size:13px;font-weight:600;margin-top:8px}
 </style>
 </head>
@@ -223,7 +227,7 @@ function home(){
 
 function begin(qs){
   // 각 문제의 보기 순서를 한 번만 섞어 둔다
-  S = {qs: qs.map(q=>({...q, shown: q.opts ? shuffle(q.opts) : null})), i:0, ans:[], over:{}};
+  S = {qs: qs.map(q=>({...q, shown: q.opts ? shuffle(q.opts) : null})), i:0, ans:[], over:{}, rev:{}};
   show();
 }
 
@@ -239,6 +243,10 @@ function show(){
     body=`<textarea id="essay" placeholder="답안을 직접 써 보세요.">${a||""}</textarea>`;
   }
   const last = S.i===n-1;
+  const shown = !!S.rev[S.i];
+  const answerBox = shown
+    ? `<div class="ansbox"><div><b>정답</b> ${ansText(q)}</div>${q.ex?`<div class="ex">💡 ${q.ex}</div>`:""}</div>`
+    : "";
   $app.innerHTML=`
   <div class="top"><div class="meta"><span>${q.label}</span><span>${S.i+1} / ${n}</span></div><div class="bar"><i style="width:${(S.i)/n*100}%"></i></div></div>
   <div class="pad" style="flex:1">
@@ -246,23 +254,36 @@ function show(){
     ${q.passage?`<div class="passage">${q.passage}</div>`:""}
     <div class="q">${q.text}</div>
     ${body}
+    <button class="btn ghost peek" id="peek">${shown?"답 숨기기":"👀 답 보기"}</button>
+    ${answerBox}
   </div>
-  <div class="foot"><div class="row">
-    ${S.i>0?`<button class="btn ghost" id="prev" style="flex:.6">이전</button>`:""}
-    <button class="btn" id="next">${last?"제출하고 채점":"다음"}</button>
-  </div></div>`;
+  <div class="foot">
+    <div class="row">
+      ${S.i>0?`<button class="btn ghost" id="prev" style="flex:.6">이전</button>`:""}
+      <button class="btn" id="next">${last?"제출하고 채점":"다음"}</button>
+    </div>
+    ${last?"":`<button class="gradelink" id="grade">채점하러 가기 ›</button>`}
+  </div>`;
+  document.getElementById("peek").onclick=()=>{S.rev[S.i]=!S.rev[S.i];show();};
+  const g=document.getElementById("grade"); if(g) g.onclick=goGrade;
   if(q.sec==="ox") $app.querySelectorAll(".ox button").forEach(b=>b.onclick=()=>{S.ans[S.i]=b.dataset.v==="1";show();});
   if(q.sec==="mc") $app.querySelectorAll(".opt").forEach(b=>b.onclick=()=>{S.ans[S.i]=q.shown[+b.dataset.v];show();});
   if(q.sec==="es") document.getElementById("essay").oninput=e=>S.ans[S.i]=e.target.value;
   const p=document.getElementById("prev"); if(p) p.onclick=()=>{S.i--;show();window.scrollTo(0,0)};
   document.getElementById("next").onclick=()=>{
-    if(last){
-      const un=S.qs.filter((x,k)=>S.ans[k]===undefined||S.ans[k]==="").length;
-      if(un && !confirm(`아직 답하지 않은 문제가 ${un}개 있어요. 그래도 채점할까요?`)) return;
-      return result();
-    }
+    if(last) return goGrade();
     S.i++; show(); window.scrollTo(0,0);
   };
+}
+
+function ansText(q){
+  return q.sec==="ox" ? (q.ans?"O":"X") : q.sec==="es" ? q.model : q.ans;
+}
+
+function goGrade(){
+  const un=S.qs.filter((x,k)=>S.ans[k]===undefined||S.ans[k]==="").length;
+  if(un && !confirm(`아직 답하지 않은 문제가 ${un}개 있어요. 그래도 채점할까요?\n(안 푼 문제는 오답 처리돼요)`)) return;
+  filter="all"; result();
 }
 
 function judge(q,a,k){
